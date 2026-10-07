@@ -1,0 +1,87 @@
+---
+- name: Secure Ubuntu Server
+  hosts: ubuntu
+  become: true
+
+  tasks:
+
+    # Install required security packages
+    - name: Install required packages
+      apt:
+        name:
+          - ufw
+          - fail2ban
+        state: present
+        update_cache: true
+
+    # SSH Hardening
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+
+    - name: Disable SSH password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Enable SSH key authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PubkeyAuthentication'
+        line: 'PubkeyAuthentication yes'
+
+    # UFW Firewall
+    - name: Allow SSH
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: Allow HTTP
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Allow HTTPS
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: Set UFW default incoming policy
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Set UFW default outgoing policy
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+
+    # Fail2ban
+    - name: Configure fail2ban for SSH
+      copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [DEFAULT]
+          bantime = 10m
+          findtime = 10m
+          maxretry = 5
+
+          [sshd]
+          enabled = true
+          port = 22
+
+    - name: Start fail2ban
+      service:
+        name: fail2ban
+        state: started
+        enabled: true
