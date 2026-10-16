@@ -1,0 +1,12 @@
+
+---
+- name: Configure production containers
+  hosts: env_prod
+  become: true
+
+  tasks:
+    - name: Set production MOTD
+      ansible.builtin.copy:
+        content: "WARNING: Production environment!\n"
+        dest: /etc/motd
+        mode: "0644"

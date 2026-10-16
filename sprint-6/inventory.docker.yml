@@ -1,0 +1,19 @@
+plugin: community.docker.docker_containers
+
+docker_host: unix:///var/run/docker.sock
+connection_type: docker-cli
+strict: false
+
+filters:
+  - include: inventory_hostname in ['s6-dev-web', 's6-prod-web', 's6-prod-db']
+  - exclude: true
+
+compose:
+  env: docker_config.Labels.env
+  role: docker_config.Labels.role
+
+keyed_groups:
+  - key: env
+    prefix: env
+  - key: role
+    prefix: role

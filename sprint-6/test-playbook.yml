@@ -1,0 +1,12 @@
+
+---
+- name: Configure web containers
+  hosts: role_web
+  become: true
+
+  tasks:
+    - name: Set MOTD message
+      ansible.builtin.copy:
+        content: "Welcome to the {{ env }} web server!\n"
+        dest: /etc/motd
+        mode: "0644"
