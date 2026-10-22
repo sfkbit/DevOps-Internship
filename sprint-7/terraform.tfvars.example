@@ -1,0 +1,24 @@
+aws_region         = "ap-south-1"
+project_name       = "sprint7-eks"
+vpc_cidr           = "10.0.0.0/16"
+kubernetes_version = "1.33"
+
+public_subnet_cidrs = [
+  "10.0.1.0/24",
+  "10.0.2.0/24"
+]
+
+private_subnet_cidrs = [
+  "10.0.11.0/24",
+  "10.0.12.0/24"
+]
+
+general_instance_types = ["t3.medium"]
+general_min_size       = 2
+general_desired_size   = 2
+general_max_size       = 4
+
+spot_instance_types = ["t3.medium", "t3a.medium"]
+spot_min_size       = 0
+spot_desired_size   = 0
+spot_max_size       = 5

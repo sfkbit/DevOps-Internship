@@ -1,0 +1,28 @@
+
+# Terraform downloaded providers and modules
+.terraform/
+
+# Terraform state and backups
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform crash logs and saved plans
+crash.log
+crash.*.log
+*.tfplan
+*.plan
+
+# Real variable files (keep the example file)
+*.tfvars
+!terraform.tfvars.example
+*.auto.tfvars
+
+# Credentials and private keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
