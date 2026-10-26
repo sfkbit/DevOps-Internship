@@ -1,0 +1,8 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+
+# Terraform generated files
+terraform/.terraform/
+terraform/backup.zip

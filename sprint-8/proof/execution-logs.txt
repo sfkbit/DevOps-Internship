@@ -1,0 +1,11 @@
+test_creates_and_deletes_snapshots (test_backup.TestBackup.test_creates_and_deletes_snapshots) ... ok
+test_handles_no_volumes (test_backup.TestBackup.test_handles_no_volumes) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.003s
+
+OK
+Created snapshot: snap-new
+Deleted expired snapshot: snap-old
+Backup job completed.
+Backup job completed.
