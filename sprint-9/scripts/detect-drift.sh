@@ -15,14 +15,17 @@ cd "$PROJECT_DIR" || exit 1
 
 echo "Checking Terraform infrastructure..."
 
+# Capture Terraform's exit code without stopping the script.
 set +e
 terraform plan -detailed-exitcode -no-color > "$REPORT" 2>&1
 RESULT=$?
 set -e
 
+echo "Terraform exit code: $RESULT"
+
 case "$RESULT" in
   0)
-    echo "No changes detected in the current Terraform plan."
+    echo "No changes detected."
     cat "$REPORT"
     exit 0
     ;;
@@ -48,15 +51,21 @@ fi
 
 PAYLOAD=$(python3 -c '
 import json, pathlib, sys
+
+report = pathlib.Path(sys.argv[1]).read_text()
+
 print(json.dumps({
     "project": "sprint-9",
     "event": "terraform_changes_detected",
     "exit_code": 2,
-    "report": pathlib.Path(sys.argv[1]).read_text()
+    "report": report
 }))
 ' "$REPORT") || exit 1
 
-HTTP_CODE=$(curl -sS -o "$RESPONSE" \
+HTTP_CODE=$(curl -sS \
+  --connect-timeout 10 \
+  --max-time 30 \
+  -o "$RESPONSE" \
   -w "%{http_code}" \
   -X POST "$WEBHOOK_URL" \
   -H "Content-Type: application/json" \
