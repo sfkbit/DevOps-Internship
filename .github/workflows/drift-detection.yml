@@ -29,22 +29,15 @@ jobs:
         working-directory: sprint-9/terraform
         run: terraform apply -auto-approve
 
-      - name: Verify initial restart policy
+      - name: Clear old proof files
         run: |
-          echo "Restart policy before manual change:"
-          docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test
+          rm -f sprint-9/proof/drift-report.txt
+          rm -f sprint-9/proof/webhook-response.txt
 
       - name: Simulate manual change
         run: |
           docker update --restart always sprint-9-drift-test
-          echo "Restart policy after manual change:"
-          docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test
-
-      - name: Verify manual change
-        run: |
-          POLICY=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test)
-          echo "Actual restart policy: $POLICY"
-          test "$POLICY" = "always"
+          test "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test)" = "always"
 
       - name: Detect drift and send alert
         env:
@@ -53,9 +46,9 @@ jobs:
           chmod +x sprint-9/scripts/detect-drift.sh
           sprint-9/scripts/detect-drift.sh
 
-      - name: Verify drift was detected
+      - name: Verify drift was detected in this run
         run: |
-          grep -F 'restart' sprint-9/proof/drift-report.txt
+          test -f sprint-9/proof/drift-report.txt
           grep -F '"always" -> "no"' sprint-9/proof/drift-report.txt
 
       - name: Upload proof files
