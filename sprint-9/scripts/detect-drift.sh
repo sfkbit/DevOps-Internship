@@ -6,43 +6,49 @@ set -u
 PROJECT_DIR="$(cd "$(dirname "$0")/../terraform" && pwd)"
 PROOF_DIR="$(cd "$(dirname "$0")/../proof" && pwd)"
 REPORT="$PROOF_DIR/drift-report.txt"
+PLAN="$PROOF_DIR/drift.tfplan"
+JSON_PLAN="$PROOF_DIR/drift-plan.json"
 RESPONSE="$PROOF_DIR/webhook-response.txt"
 
 mkdir -p "$PROOF_DIR"
-rm -f "$REPORT" "$RESPONSE"
+rm -f "$REPORT" "$PLAN" "$JSON_PLAN" "$RESPONSE"
 
 cd "$PROJECT_DIR" || exit 1
 
 echo "Checking Terraform infrastructure..."
 
-# Capture Terraform's exit code without stopping the script.
-set +e
-terraform plan -detailed-exitcode -no-color > "$REPORT" 2>&1
+terraform plan -no-color -out="$PLAN" > "$REPORT" 2>&1
 RESULT=$?
-set -e
 
-echo "Terraform exit code: $RESULT"
+if [ "$RESULT" -ne 0 ]; then
+  echo "ERROR: Terraform plan failed."
+  cat "$REPORT"
+  exit 1
+fi
 
-case "$RESULT" in
-  0)
-    echo "No changes detected."
-    cat "$REPORT"
-    exit 0
-    ;;
-  1)
-    echo "ERROR: Terraform plan failed."
-    cat "$REPORT"
-    exit 1
-    ;;
-  2)
-    echo "Changes detected. Preparing webhook alert..."
-    ;;
-  *)
-    echo "Unexpected Terraform exit code: $RESULT"
-    cat "$REPORT"
-    exit "$RESULT"
-    ;;
-esac
+terraform show -json "$PLAN" > "$JSON_PLAN" || exit 1
+
+CHANGES=$(python3 -c '
+import json, sys
+plan = json.load(open(sys.argv[1]))
+changes = [
+    r for r in plan.get("resource_changes", [])
+    if r.get("change", {}).get("actions") != ["no-op"]
+]
+print(len(changes))
+' "$JSON_PLAN") || exit 1
+
+echo "Resources with proposed changes: $CHANGES"
+
+if [ "$CHANGES" -eq 0 ]; then
+  echo "No changes detected."
+  cat "$REPORT"
+  exit 0
+fi
+
+echo "Changes detected. Preparing webhook alert..."
+
+cat "$REPORT"
 
 if [[ -z "${WEBHOOK_URL:-}" ]]; then
   echo "ERROR: WEBHOOK_URL is not set."
@@ -51,22 +57,16 @@ fi
 
 PAYLOAD=$(python3 -c '
 import json, pathlib, sys
-
-report = pathlib.Path(sys.argv[1]).read_text()
-
 print(json.dumps({
     "project": "sprint-9",
     "event": "terraform_changes_detected",
-    "exit_code": 2,
-    "report": report
+    "resources_with_changes": int(sys.argv[2]),
+    "report": pathlib.Path(sys.argv[1]).read_text()
 }))
-' "$REPORT") || exit 1
+' "$REPORT" "$CHANGES") || exit 1
 
-HTTP_CODE=$(curl -sS \
-  --connect-timeout 10 \
-  --max-time 30 \
-  -o "$RESPONSE" \
-  -w "%{http_code}" \
+HTTP_CODE=$(curl -sS --connect-timeout 10 --max-time 30 \
+  -o "$RESPONSE" -w "%{http_code}" \
   -X POST "$WEBHOOK_URL" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD") || {
