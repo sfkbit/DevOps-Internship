@@ -17,11 +17,6 @@ jobs:
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
       - name: Initialize Terraform
         working-directory: sprint-9/terraform
         run: terraform init
@@ -34,8 +29,22 @@ jobs:
         working-directory: sprint-9/terraform
         run: terraform apply -auto-approve
 
+      - name: Verify initial restart policy
+        run: |
+          echo "Restart policy before manual change:"
+          docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test
+
       - name: Simulate manual change
-        run: docker update --restart always sprint-9-drift-test
+        run: |
+          docker update --restart always sprint-9-drift-test
+          echo "Restart policy after manual change:"
+          docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test
+
+      - name: Verify manual change
+        run: |
+          POLICY=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test)
+          echo "Actual restart policy: $POLICY"
+          test "$POLICY" = "always"
 
       - name: Detect drift and send alert
         env:
@@ -43,6 +52,11 @@ jobs:
         run: |
           chmod +x sprint-9/scripts/detect-drift.sh
           sprint-9/scripts/detect-drift.sh
+
+      - name: Verify drift was detected
+        run: |
+          grep -F 'restart' sprint-9/proof/drift-report.txt
+          grep -F '"always" -> "no"' sprint-9/proof/drift-report.txt
 
       - name: Upload proof files
         if: always()
@@ -53,3 +67,4 @@ jobs:
             sprint-9/proof/drift-report.txt
             sprint-9/proof/webhook-response.txt
           if-no-files-found: ignore
+
