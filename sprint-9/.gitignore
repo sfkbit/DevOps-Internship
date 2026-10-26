@@ -1,0 +1,10 @@
+
+# Terraform state and local working files
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/.terraform/
+terraform/crash.log
+
+# Python cache
+__pycache__/
+*.pyc

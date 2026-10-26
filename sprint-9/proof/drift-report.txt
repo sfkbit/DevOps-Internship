@@ -1,0 +1,25 @@
+docker_image.drift_test: Refreshing state... [id=sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417nginx:alpine]
+docker_container.drift_test: Refreshing state... [id=1a379431ae60b4210654fe5cd3237358642814ee59b545021d4999bd48fb1752]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # docker_container.drift_test will be updated in-place
+  ~ resource "docker_container" "drift_test" {
+        id                                          = "1a379431ae60b4210654fe5cd3237358642814ee59b545021d4999bd48fb1752"
+        name                                        = "sprint-9-drift-test"
+      ~ restart                                     = "always" -> "no"
+        # (49 unchanged attributes hidden)
+
+        # (2 unchanged blocks hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

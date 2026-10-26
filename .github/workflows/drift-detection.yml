@@ -1,0 +1,55 @@
+
+name: Terraform Drift Detection
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  drift-detection:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Initialize Terraform
+        working-directory: sprint-9/terraform
+        run: terraform init
+
+      - name: Validate Terraform
+        working-directory: sprint-9/terraform
+        run: terraform validate
+
+      - name: Create test infrastructure
+        working-directory: sprint-9/terraform
+        run: terraform apply -auto-approve
+
+      - name: Simulate manual change
+        run: docker update --restart always sprint-9-drift-test
+
+      - name: Detect drift and send alert
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          chmod +x sprint-9/scripts/detect-drift.sh
+          sprint-9/scripts/detect-drift.sh
+
+      - name: Upload proof files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint-9-proof
+          path: |
+            sprint-9/proof/drift-report.txt
+            sprint-9/proof/webhook-response.txt
+          if-no-files-found: ignore
