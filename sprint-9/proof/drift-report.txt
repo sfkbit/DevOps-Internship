@@ -21,5 +21,7 @@ Plan: 0 to add, 1 to change, 0 to destroy.
 
 ─────────────────────────────────────────────────────────────────────────────
 
-Note: You didn't use the -out option to save this plan, so Terraform can't
-guarantee to take exactly these actions if you run "terraform apply" now.
+Saved the plan to: /home/sfk/DevOps-Internship/sprint-9/proof/drift.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "/home/sfk/DevOps-Internship/sprint-9/proof/drift.tfplan"

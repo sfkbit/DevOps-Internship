@@ -17,11 +17,25 @@ cd "$PROJECT_DIR" || exit 1
 
 echo "Checking Terraform infrastructure..."
 
-terraform plan -no-color -out="$PLAN" > "$REPORT" 2>&1
+set +e
+terraform plan -detailed-exitcode -no-color -out="$PLAN" > "$REPORT" 2>&1
 RESULT=$?
+set -e
 
-if [ "$RESULT" -ne 0 ]; then
+if [ "$RESULT" -eq 1 ]; then
   echo "ERROR: Terraform plan failed."
+  cat "$REPORT"
+  exit 1
+fi
+
+if [ "$RESULT" -eq 0 ]; then
+  echo "No changes detected."
+  cat "$REPORT"
+  exit 0
+fi
+
+if [ "$RESULT" -ne 2 ]; then
+  echo "ERROR: Unexpected Terraform exit code: $RESULT"
   cat "$REPORT"
   exit 1
 fi
@@ -30,7 +44,8 @@ terraform show -json "$PLAN" > "$JSON_PLAN" || exit 1
 
 CHANGES=$(python3 -c '
 import json, sys
-plan = json.load(open(sys.argv[1]))
+with open(sys.argv[1]) as f:
+    plan = json.load(f)
 changes = [
     r for r in plan.get("resource_changes", [])
     if r.get("change", {}).get("actions") != ["no-op"]
@@ -38,16 +53,15 @@ changes = [
 print(len(changes))
 ' "$JSON_PLAN") || exit 1
 
+echo "Terraform exit code: $RESULT (changes detected)"
 echo "Resources with proposed changes: $CHANGES"
 
 if [ "$CHANGES" -eq 0 ]; then
-  echo "No changes detected."
-  cat "$REPORT"
-  exit 0
+  echo "ERROR: Terraform returned exit code 2, but no resource changes were found."
+  exit 1
 fi
 
 echo "Changes detected. Preparing webhook alert..."
-
 cat "$REPORT"
 
 if [[ -z "${WEBHOOK_URL:-}" ]]; then
@@ -60,6 +74,7 @@ import json, pathlib, sys
 print(json.dumps({
     "project": "sprint-9",
     "event": "terraform_changes_detected",
+    "terraform_exit_code": 2,
     "resources_with_changes": int(sys.argv[2]),
     "report": pathlib.Path(sys.argv[1]).read_text()
 }))

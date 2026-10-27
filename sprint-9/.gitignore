@@ -1,10 +1,20 @@
 
-# Terraform state and local working files
+# Terraform state and local working directory
 terraform/terraform.tfstate
 terraform/terraform.tfstate.*
 terraform/.terraform/
+
+# Generated Terraform plans and JSON output
+proof/*.tfplan
+proof/*.json
+terraform/*.tfplan
+terraform/*.json
+
+# Crash logs
 terraform/crash.log
+crash.log
 
 # Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+
