@@ -6,20 +6,26 @@ on:
   schedule:
     - cron: "0 2 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   drift-detection:
+    name: Detect Terraform Drift
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Terraform
+      - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - name: Initialize Terraform
         working-directory: sprint-9/terraform
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Validate Terraform
         working-directory: sprint-9/terraform
@@ -27,17 +33,29 @@ jobs:
 
       - name: Create test infrastructure
         working-directory: sprint-9/terraform
-        run: terraform apply -auto-approve
+        run: terraform apply -input=false -auto-approve
 
       - name: Clear old proof files
         run: |
           rm -f sprint-9/proof/drift-report.txt
+          rm -f sprint-9/proof/drift.tfplan
+          rm -f sprint-9/proof/drift-plan.json
           rm -f sprint-9/proof/webhook-response.txt
 
-      - name: Simulate manual change
+      - name: Simulate manual infrastructure change
         run: |
           docker update --restart always sprint-9-drift-test
-          test "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test)" = "always"
+
+          ACTUAL=$(docker inspect \
+            -f '{{.HostConfig.RestartPolicy.Name}}' \
+            sprint-9-drift-test)
+
+          echo "Actual restart policy: $ACTUAL"
+
+          if [ "$ACTUAL" != "always" ]; then
+            echo "ERROR: Drift simulation failed."
+            exit 1
+          fi
 
       - name: Detect drift and send alert
         env:
@@ -46,18 +64,25 @@ jobs:
           chmod +x sprint-9/scripts/detect-drift.sh
           sprint-9/scripts/detect-drift.sh
 
-      - name: Verify drift was detected in this run
+      - name: Verify detected configuration difference
         run: |
           test -f sprint-9/proof/drift-report.txt
-          grep -F '"always" -> "no"' sprint-9/proof/drift-report.txt
+
+          if ! grep -F '"always" -> "no"' \
+            sprint-9/proof/drift-report.txt; then
+            echo "ERROR: Expected Terraform difference not found."
+            exit 1
+          fi
+
+          echo "Expected restart-policy difference verified."
 
       - name: Upload proof files
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sprint-9-proof
+          if-no-files-found: ignore
           path: |
             sprint-9/proof/drift-report.txt
             sprint-9/proof/webhook-response.txt
-          if-no-files-found: ignore
 
