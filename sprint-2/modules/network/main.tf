@@ -1,3 +1,4 @@
+
 terraform {
   required_providers {
     docker = {
@@ -6,9 +7,25 @@ terraform {
     }
   }
 }
+
 resource "docker_network" "public_1" {
   name   = "${var.environment}-public-1"
   driver = "bridge"
+
+  labels {
+    label = "environment"
+    value = var.environment
+  }
+
+  labels {
+    label = "network-type"
+    value = "public"
+  }
+
+  labels {
+    label = "resource-profile"
+    value = var.resource_size
+  }
 
   ipam_config {
     subnet  = var.public_subnet_cidrs[0]
@@ -19,6 +36,21 @@ resource "docker_network" "public_1" {
 resource "docker_network" "public_2" {
   name   = "${var.environment}-public-2"
   driver = "bridge"
+
+  labels {
+    label = "environment"
+    value = var.environment
+  }
+
+  labels {
+    label = "network-type"
+    value = "public"
+  }
+
+  labels {
+    label = "resource-profile"
+    value = var.resource_size
+  }
 
   ipam_config {
     subnet  = var.public_subnet_cidrs[1]
@@ -31,6 +63,21 @@ resource "docker_network" "private_1" {
   driver   = "bridge"
   internal = true
 
+  labels {
+    label = "environment"
+    value = var.environment
+  }
+
+  labels {
+    label = "network-type"
+    value = "private"
+  }
+
+  labels {
+    label = "resource-profile"
+    value = var.resource_size
+  }
+
   ipam_config {
     subnet  = var.private_subnet_cidrs[0]
     gateway = var.private_gateways[0]
@@ -42,8 +89,24 @@ resource "docker_network" "private_2" {
   driver   = "bridge"
   internal = true
 
+  labels {
+    label = "environment"
+    value = var.environment
+  }
+
+  labels {
+    label = "network-type"
+    value = "private"
+  }
+
+  labels {
+    label = "resource-profile"
+    value = var.resource_size
+  }
+
   ipam_config {
     subnet  = var.private_subnet_cidrs[1]
     gateway = var.private_gateways[1]
   }
 }
+

@@ -18,6 +18,7 @@ The project contains:
 - Environment-specific Terraform configuration
 - Separate network CIDR ranges
 - Terraform outputs for created networks
+- Environment-specific Docker network labels
 - Terraform validation and planning for each environment
 - Proof of work screenshots
 
@@ -27,19 +28,19 @@ The project contains:
 
 The project uses a reusable Terraform network module that is shared by the Development, Staging and Production environments.
 
-~~~text
+```text
                     Network Module
                          |
-             +-----------+-----------+
-             |           |           |
-            DEV       STAGING       PROD
-             |           |           |
-        10.10.x.x    10.20.x.x    10.30.x.x
-             |           |           |
-        +----+----+  +---+----+  +---+----+
-        |         |  |        |  |        |
-      Public   Private Public Private Public Private
-~~~
+              +-----------+-----------+
+              |           |           |
+             DEV       STAGING       PROD
+              |           |           |
+         10.10.x.x    10.20.x.x    10.30.x.x
+              |           |           |
+         +----+----+  +---+----+  +---+----+
+         |         |  |        |  |        |
+       Public   Private Public Private Public Private
+```
 
 Each environment has its own Terraform configuration and network address space.
 
@@ -50,6 +51,7 @@ The network module creates:
 - Configurable subnet CIDRs
 - Configurable gateway addresses
 - Environment-specific network names
+- Environment-specific Docker labels
 
 Private networks are configured using Docker's `internal` mode.
 
@@ -61,7 +63,7 @@ Private networks are configured using Docker's `internal` mode.
 
 Environment: `dev`
 
-Resource size: `small`
+Resource size profile: `small`
 
 Network address space: `10.10.0.0/16`
 
@@ -86,7 +88,7 @@ Gateways:
 
 Environment: `staging`
 
-Resource size: `medium`
+Resource size profile: `medium`
 
 Network address space: `10.20.0.0/16`
 
@@ -111,7 +113,7 @@ Gateways:
 
 Environment: `prod`
 
-Resource size: `large`
+Resource size profile: `large`
 
 Network address space: `10.30.0.0/16`
 
@@ -140,24 +142,24 @@ The common network infrastructure is implemented as a reusable Terraform module.
 
 The module is located at:
 
-~~~text
+```text
 modules/network/
 ├── main.tf
 ├── variables.tf
 └── outputs.tf
-~~~
+```
 
 The same module is used by all three environments.
 
-~~~text
+```text
              Network Module
                    |
-       +-----------+-----------+
-       |           |           |
-      Dev       Staging       Prod
-       |           |           |
-    10.10.x     10.20.x      10.30.x
-~~~
+        +-----------+-----------+
+        |           |           |
+       Dev       Staging       Prod
+        |           |           |
+     10.10.x     10.20.x      10.30.x
+```
 
 This allows the infrastructure logic to be maintained in one place while each environment supplies its own configuration.
 
@@ -190,7 +192,7 @@ This implementation provides a local demonstration of multi-environment Terrafor
 
 A single reusable Terraform network module is used by the Development, Staging and Production environments.
 
-This avoids duplicating the same infrastructure logic across multiple environment configurations.
+This avoids duplicating the same infrastructure logic across multiple environments.
 
 The module receives environment-specific values such as:
 
@@ -199,17 +201,17 @@ The module receives environment-specific values such as:
 - Private subnet CIDRs
 - Public gateway addresses
 - Private gateway addresses
-- Resource size
+- Resource size profile
 
 ### Environment Separation
 
 Each environment has its own Terraform configuration and network address space.
 
-~~~text
+```text
 Development → 10.10.0.0/16
 Staging     → 10.20.0.0/16
 Production  → 10.30.0.0/16
-~~~
+```
 
 This prevents overlapping network ranges and keeps the environments logically separated.
 
@@ -217,9 +219,9 @@ This prevents overlapping network ranges and keeps the environments logically se
 
 Environment-specific values are stored in:
 
-~~~text
+```text
 terraform.tfvars
-~~~
+```
 
 The Terraform configuration and reusable module remain separate from these environment-specific values.
 
@@ -235,9 +237,9 @@ This provides a practical way to demonstrate Terraform infrastructure without re
 
 Private networks use:
 
-~~~hcl
+```hcl
 internal = true
-~~~
+```
 
 This prevents external connectivity for the private network resources.
 
@@ -245,19 +247,41 @@ This prevents external connectivity for the private network resources.
 
 Each environment has a different resource size profile:
 
-~~~text
+```text
 Development → small
 Staging     → medium
 Production  → large
-~~~
+```
 
-The value is passed through Terraform variables and outputs to demonstrate environment-specific configuration.
+These profiles are passed through Terraform variables and applied as Docker network labels.
+
+They represent environment configuration metadata and do not control actual CPU or memory allocation.
+
+### Docker Network Labels
+
+Each Docker network receives three labels:
+
+| Label | Description | Example |
+|---|---|---|
+| `environment` | Identifies the environment | `dev`, `staging`, `prod` |
+| `network-type` | Identifies the network type | `public`, `private` |
+| `resource-profile` | Identifies the environment resource profile | `small`, `medium`, `large` |
+
+These labels make it easier to identify, inspect and filter networks belonging to different environments and network types.
+
+For example, a Development public network has the following labels:
+
+```text
+environment=dev
+network-type=public
+resource-profile=small
+```
 
 ---
 
 ## Project Structure
 
-~~~text
+```text
 sprint-2/
 ├── environments/
 │   ├── dev/
@@ -296,7 +320,7 @@ sprint-2/
 │   └── staging-configuration.png
 │
 └── README.md
-~~~
+```
 
 ---
 
@@ -311,6 +335,8 @@ The module creates:
 - 2 public networks
 - 2 private networks
 
+Each network also receives environment, network-type and resource-profile labels.
+
 ### `modules/network/variables.tf`
 
 Contains the variables required by the network module, including:
@@ -320,7 +346,7 @@ Contains the variables required by the network module, including:
 - Private subnet CIDRs
 - Public gateway addresses
 - Private gateway addresses
-- Resource size
+- Resource size profile
 
 ### `modules/network/outputs.tf`
 
@@ -339,7 +365,7 @@ Contains the variables required by the environment configuration.
 Contains environment-specific values such as:
 
 - Environment name
-- Resource size
+- Resource size profile
 - Public subnet CIDRs
 - Private subnet CIDRs
 - Public gateways
@@ -361,10 +387,10 @@ The following are required:
 
 Check the installed versions:
 
-~~~bash
+```bash
 docker --version
 terraform --version
-~~~
+```
 
 ---
 
@@ -374,33 +400,33 @@ Navigate to the required environment.
 
 For example, Development:
 
-~~~bash
+```bash
 cd ~/DevOps-Internship/sprint-2/environments/dev
-~~~
+```
 
 Initialize Terraform:
 
-~~~bash
+```bash
 terraform init
-~~~
+```
 
 Format the Terraform configuration:
 
-~~~bash
+```bash
 terraform fmt
-~~~
+```
 
 Validate the configuration:
 
-~~~bash
+```bash
 terraform validate
-~~~
+```
 
 Create and review the Terraform plan:
 
-~~~bash
+```bash
 terraform plan
-~~~
+```
 
 The same process can be followed for the Staging and Production environments.
 
@@ -410,41 +436,41 @@ The same process can be followed for the Staging and Production environments.
 
 Navigate to the Development environment:
 
-~~~bash
+```bash
 cd ~/DevOps-Internship/sprint-2/environments/dev
-~~~
+```
 
 Initialize Terraform:
 
-~~~bash
+```bash
 terraform init
-~~~
+```
 
 Format the configuration:
 
-~~~bash
+```bash
 terraform fmt
-~~~
+```
 
 Validate the configuration:
 
-~~~bash
+```bash
 terraform validate
-~~~
+```
 
 Generate the execution plan:
 
-~~~bash
+```bash
 terraform plan
-~~~
+```
 
 The Development environment uses:
 
-~~~text
+```text
 Environment: dev
-Resource size: small
+Resource size profile: small
 Network range: 10.10.0.0/16
-~~~
+```
 
 ---
 
@@ -452,41 +478,41 @@ Network range: 10.10.0.0/16
 
 Navigate to the Staging environment:
 
-~~~bash
+```bash
 cd ~/DevOps-Internship/sprint-2/environments/staging
-~~~
+```
 
 Initialize Terraform:
 
-~~~bash
+```bash
 terraform init
-~~~
+```
 
 Format the configuration:
 
-~~~bash
+```bash
 terraform fmt
-~~~
+```
 
 Validate the configuration:
 
-~~~bash
+```bash
 terraform validate
-~~~
+```
 
 Generate the execution plan:
 
-~~~bash
+```bash
 terraform plan
-~~~
+```
 
 The Staging environment uses:
 
-~~~text
+```text
 Environment: staging
-Resource size: medium
+Resource size profile: medium
 Network range: 10.20.0.0/16
-~~~
+```
 
 ---
 
@@ -494,41 +520,41 @@ Network range: 10.20.0.0/16
 
 Navigate to the Production environment:
 
-~~~bash
+```bash
 cd ~/DevOps-Internship/sprint-2/environments/prod
-~~~
+```
 
 Initialize Terraform:
 
-~~~bash
+```bash
 terraform init
-~~~
+```
 
 Format the configuration:
 
-~~~bash
+```bash
 terraform fmt
-~~~
+```
 
 Validate the configuration:
 
-~~~bash
+```bash
 terraform validate
-~~~
+```
 
 Generate the execution plan:
 
-~~~bash
+```bash
 terraform plan
-~~~
+```
 
 The Production environment uses:
 
-~~~text
+```text
 Environment: prod
-Resource size: large
+Resource size profile: large
 Network range: 10.30.0.0/16
-~~~
+```
 
 ---
 
@@ -538,68 +564,72 @@ Network range: 10.30.0.0/16
 
 Terraform configuration can be formatted using:
 
-~~~bash
+```bash
 terraform fmt
-~~~
+```
 
 ### Terraform Validation
 
 Each environment is validated using:
 
-~~~bash
+```bash
 terraform validate
-~~~
+```
 
 A successful validation returns:
 
-~~~text
+```text
 Success! The configuration is valid.
-~~~
+```
 
 ### Terraform Plan
 
 The infrastructure changes can be reviewed using:
 
-~~~bash
+```bash
 terraform plan
-~~~
+```
 
 Each environment produces a separate Terraform plan.
 
 The expected result for each environment is:
 
-~~~text
+```text
 Plan: 4 to add, 0 to change, 0 to destroy.
-~~~
+```
 
 The four resources represent:
 
-~~~text
+```text
 1. Public Network 1
 2. Public Network 2
 3. Private Network 1
 4. Private Network 2
-~~~
+```
+
+The plans also show the environment-specific Docker labels for each network.
 
 ### Docker Network Verification
 
 Created Docker networks can be listed using:
 
-~~~bash
+```bash
 docker network ls
-~~~
+```
 
 Individual networks can be inspected using:
 
-~~~bash
+```bash
 docker network inspect <network-name>
-~~~
+```
 
 For example:
 
-~~~bash
+```bash
 docker network inspect dev-public-1
-~~~
+```
+
+Network labels can be inspected using Docker's network inspection output.
 
 Private networks can be identified by their Docker `internal` configuration.
 
@@ -609,7 +639,7 @@ Private networks can be identified by their Docker `internal` configuration.
 
 Each environment uses its own network address space and configuration.
 
-~~~text
+```text
 Development
 10.10.0.0/16
      |
@@ -635,9 +665,9 @@ Production
      +-- Public 2: 10.30.2.0/24
      +-- Private 1: 10.30.3.0/24
      +-- Private 2: 10.30.4.0/24
-~~~
+```
 
-The environments are isolated from each other by using separate network ranges and separate Terraform configurations.
+The environments are separated using distinct network ranges and separate Terraform configurations.
 
 ---
 
@@ -695,6 +725,7 @@ This sprint covers:
 - Module inputs and outputs
 - Environment separation
 - Infrastructure isolation
+- Docker network labels
 - Terraform providers
 - Terraform formatting
 - Terraform validation
@@ -707,9 +738,9 @@ This sprint covers:
 
 If infrastructure has been created using `terraform apply`, it can be removed from the selected environment using:
 
-~~~bash
+```bash
 terraform destroy
-~~~
+```
 
 Run the command from the environment directory whose infrastructure should be removed.
 
@@ -721,11 +752,11 @@ Terraform state files and generated `.terraform` directories are excluded from v
 
 Terraform-generated files such as:
 
-~~~text
+```text
 .terraform/
 terraform.tfstate
 terraform.tfstate.*
-~~~
+```
 
 are excluded from Git using `.gitignore`.
 
@@ -742,5 +773,9 @@ No cloud credentials, API keys or other sensitive secrets are stored in the proj
 Development, Staging and Production environments have been configured using reusable Terraform infrastructure and environment-specific configuration.
 
 All three environments have been successfully validated and Terraform execution plans have been generated successfully.
+
+Each network is configured with environment-specific labels identifying its environment, network type and resource profile.
+
+The implementation uses Terraform with Docker locally and does not require an AWS or GCP account.
 
 The source code, documentation and proof of work are included under the `sprint-2` directory.
