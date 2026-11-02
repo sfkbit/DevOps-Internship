@@ -1,11 +1,10 @@
-
 # Sprint 9: Infrastructure Governance & Automated Drift Detection
 
 ## Overview
 
-This project demonstrates how Terraform can detect infrastructure changes made outside Terraform and send an alert containing the proposed configuration difference.
+This project demonstrates how Terraform can identify infrastructure changes made outside Terraform and send an alert containing the proposed configuration difference.
 
-It uses Docker for local infrastructure, Terraform for planning, a Bash script for detection and webhook alerting, and GitHub Actions for automation.
+The project uses Docker for local infrastructure testing, a Bash script for detection and alerting, and GitHub Actions for automated execution.
 
 ## Technologies
 
@@ -20,41 +19,40 @@ It uses Docker for local infrastructure, Terraform for planning, a Bash script f
 
 ```text
 sprint-9/
-├── README.md
 ├── .gitignore
-├── terraform/
-│   ├── main.tf
-│   └── .terraform.lock.hcl
+├── README.md
+├── proof/
+│   ├── drift-report.txt
+│   └── webhook-response.txt
 ├── scripts/
 │   └── detect-drift.sh
-└── proof/
-    ├── 01-manual-drift.png
-    ├── 02-terraform-detection.png
-    ├── 03-webhook-alert.png
-    ├── 04-github-actions.png
-    └── drift-report.txt
+└── terraform/
+    ├── main.tf
+    └── .terraform.lock.hcl
 ```
 
-The automated workflow is located at `.github/workflows/drift-detection.yml` in the repository root.
+The GitHub Actions workflow is stored at the repository root in `.github/workflows/drift-detection.yml`.
 
 ## How It Works
 
-1. Terraform provisions an Nginx Docker container.
+1. Terraform provisions an Nginx Docker image and container.
 2. A manual change modifies the container's restart policy outside Terraform.
-3. The detector runs `terraform plan -detailed-exitcode`.
-4. When changes are detected, the script saves the plan and examines its JSON representation.
-5. The script sends a JSON webhook alert containing the formatted plan and resource-change count.
-6. GitHub Actions automates the test and uploads available proof artifacts.
+3. The detection script creates a Terraform plan and inspects its JSON representation to identify proposed resource changes.
+4. The script records the formatted plan.
+5. When changes are detected, it sends a JSON alert containing the plan report to a configured webhook.
+6. GitHub Actions automates the test and uploads available proof files.
 
 ## Terraform Exit Codes
 
-| Exit code | Meaning | Script behavior |
-|---|---|---|
-| `0` | No changes proposed | Reports no changes and exits successfully |
-| `1` | Terraform error | Prints the error and exits unsuccessfully |
-| `2` | Changes proposed | Counts changed resources and attempts webhook alerting |
+The standard `terraform plan -detailed-exitcode` command returns:
 
-A proposed change is not automatically proof of unauthorized activity. Review the plan to understand the difference.
+| Exit code | Meaning |
+|---|---|
+| `0` | No changes are proposed |
+| `1` | An error occurred |
+| `2` | Changes are proposed |
+
+The script uses a saved plan and its JSON representation to count resources with proposed actions. This is useful for identifying changes, but proposed changes are not necessarily unauthorized drift. The plan must be reviewed to understand why the changes are needed.
 
 ## Local Setup
 
@@ -62,7 +60,7 @@ A proposed change is not automatically proof of unauthorized activity. Review th
 
 Install Docker, Terraform, Python 3, Bash, and curl.
 
-### Initialize Terraform
+### Initialize and provision
 
 ```bash
 cd sprint-9/terraform
@@ -71,77 +69,70 @@ terraform validate
 terraform apply
 ```
 
-Review the proposed infrastructure changes before approving the apply.
+Review the plan before approving any changes.
 
-### Simulate manual drift
+### Simulate a manual change
 
-Change the restart policy directly through Docker:
+Change the container restart policy directly through Docker:
 
 ```bash
 docker update --restart always sprint-9-drift-test
 ```
 
-Verify the change:
+Verify it:
 
 ```bash
 docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' sprint-9-drift-test
 ```
 
-The expected output is `always`.
+The expected value is `always`.
 
-### Run the detector
-
-From the repository root, configure the webhook URL in your shell without committing it:
+### Run drift detection
 
 ```bash
-export WEBHOOK_URL="YOUR_WEBHOOK_URL"
-./sprint-9/scripts/detect-drift.sh
+cd ../scripts
+chmod +x detect-drift.sh
+./detect-drift.sh
 ```
 
-Replace `YOUR_WEBHOOK_URL` locally with your webhook receiver's URL. Never commit or share the actual URL.
+Set `WEBHOOK_URL` in the shell before running the detector if webhook alerting is required.
 
-The expected difference is:
+The expected Terraform difference is similar to:
 
 ```text
 restart = "always" -> "no"
 ```
 
-The script writes the formatted plan to `sprint-9/proof/drift-report.txt`.
+The detector saves the formatted plan to `proof/drift-report.txt` and sends an alert if changes are detected.
 
 ## Webhook Alerts
 
-The detector sends a JSON payload containing:
+Configure a webhook receiver and set the `WEBHOOK_URL` environment variable. The script sends a JSON payload containing the project name, event type, resource-change count, and formatted Terraform report.
 
-- Project name
-- Event type
-- Terraform exit code
-- Number of resources with proposed changes
-- Formatted plan report
+An HTTP 2xx response means the receiver accepted the request. Verify the received payload to confirm that it contains the expected difference.
 
-An HTTP 2xx response indicates that the receiver accepted the request. Check the receiver to verify the alert contents.
-
-For GitHub Actions, add a repository Actions secret named `WEBHOOK_URL`.
+Never commit webhook URLs, credentials, Terraform state, or generated plan files.
 
 ## GitHub Actions
 
-The workflow is stored at `.github/workflows/drift-detection.yml`.
+The scheduled workflow is stored at `.github/workflows/drift-detection.yml`.
 
-It supports manual execution and a daily schedule at 02:00 UTC (07:30 IST). Each run creates temporary test infrastructure, deliberately changes the Docker restart policy, runs drift detection, sends a webhook alert, verifies the detected difference, and uploads proof artifacts.
+It supports manual execution and a daily schedule at 02:00 UTC (07:30 IST). The workflow provisions a temporary test environment, simulates a manual Docker change, runs the detector, sends an alert, and uploads available proof files.
 
-This workflow demonstrates the automated process. It does not continuously monitor the user's persistent WSL infrastructure.
+A repository Actions secret named `WEBHOOK_URL` must be configured before the workflow runs.
 
-## Proof
+The workflow was tested successfully on GitHub Actions, including the detection of one proposed resource change and a successful webhook request.
 
-- `proof/01-manual-drift.png` — manual Docker change.
-- `proof/02-terraform-detection.png` — detector output and webhook status.
-- `proof/03-webhook-alert.png` — received webhook payload and Terraform difference.
-- `proof/04-github-actions.png` — successful automated workflow run.
-- `proof/drift-report.txt` — latest local Terraform plan report.
+## Evidence
+
+- `proof/drift-report.txt` — formatted Terraform plan showing the proposed difference.
+- `proof/webhook-response.txt` — response from the webhook receiver.
+- GitHub Actions run logs and uploaded artifacts — evidence of the automated test.
 
 ## Limitations
 
-- The demonstration uses Docker rather than live AWS infrastructure.
-- GitHub Actions creates fresh temporary infrastructure and simulates drift on each run.
-- A proposed Terraform change does not independently establish whether the change was unauthorized.
+- Testing uses Docker rather than live AWS infrastructure.
+- The GitHub-hosted workflow creates a fresh temporary environment and deliberately simulates a change. It demonstrates automated detection and alert delivery but does not monitor the persistent WSL environment.
+- A proposed Terraform change does not by itself establish whether a change was unauthorized.
 - webhook.site is suitable for testing, not production alerting.
-- Persistent infrastructure monitoring, remote state, and production authorization auditing are outside this demonstration's scope.
+- Production infrastructure monitoring, persistent remote state, and real-world authorization auditing are outside this demonstration's scope.
