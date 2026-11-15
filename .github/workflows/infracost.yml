@@ -1,0 +1,67 @@
+name: Infracost Cost Check
+
+on:
+  pull_request:
+    branches:
+      - sprint-10-infracost
+    paths:
+      - "sprint-10/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  cost-check:
+    name: Terraform Cost Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4
+
+      - name: Install Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate baseline cost
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_BRANCH"
+          mkdir -p /tmp/infracost-base
+          git archive "origin/$BASE_BRANCH" sprint-10 | tar -x -C /tmp/infracost-base
+
+          infracost breakdown \
+            --path /tmp/infracost-base/sprint-10 \
+            --format json \
+            --out-file /tmp/infracost-base.json
+
+      - name: Generate cost difference
+        run: |
+          infracost diff \
+            --path sprint-10 \
+            --compare-to /tmp/infracost-base.json \
+            --format json \
+            --out-file /tmp/infracost-diff.json
+
+      - name: Comment cost difference on Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          {
+            echo "## Infracost Monthly Cost Report"
+            echo
+            infracost output \
+              --path /tmp/infracost-diff.json \
+              --format diff
+          } > /tmp/infracost-comment.md
+
+          gh pr comment "$PR_URL" \
+            --body-file /tmp/infracost-comment.md
+
+      - name: Check cost threshold
+        run: |
+          python3 sprint-10/check_cost.py /tmp/infracost-diff.json
