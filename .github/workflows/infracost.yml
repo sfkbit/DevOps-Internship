@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Pull Request
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Infracost
@@ -30,13 +30,18 @@ jobs:
           BASE_BRANCH: ${{ github.base_ref }}
         run: |
           git fetch origin "$BASE_BRANCH:refs/remotes/origin/$BASE_BRANCH"
-          mkdir -p /tmp/infracost-base
-          git archive "origin/$BASE_BRANCH" sprint-10 | tar -x -C /tmp/infracost-base
+          git checkout "origin/$BASE_BRANCH"
 
           infracost breakdown \
-            --path /tmp/infracost-base/sprint-10 \
+            --path sprint-10 \
             --format json \
             --out-file /tmp/infracost-base.json
+
+      - name: Checkout Pull Request code
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout "$PR_HEAD_SHA"
 
       - name: Generate cost difference
         run: |
