@@ -38,12 +38,10 @@ jobs:
             --out-file /tmp/infracost-base.json
 
       - name: Checkout Pull Request code
-        env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          git fetch origin "$PR_HEAD_REF"
-          git checkout "$PR_HEAD_SHA"
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Generate cost difference
         run: |
